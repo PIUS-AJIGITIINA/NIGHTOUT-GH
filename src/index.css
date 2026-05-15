@@ -1,0 +1,52 @@
+@import url('https://fonts.googleapis.com/css2?family=Helvetica+Neue:wght@400;500;700&family=Impact&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Helvetica Neue", Arial, sans-serif;
+  --font-heading: "Impact", sans-serif;
+  
+  --color-gh-black: #0a0a0a;
+  --color-gh-black-light: #161616;
+  --color-gh-gold: #FFD700;
+  --color-gh-orange: #FF6B00;
+  --color-gh-muted: #888888;
+}
+
+body {
+  @apply bg-gh-black text-white font-sans antialiased;
+}
+
+.font-display { 
+  font-family: var(--font-heading), sans-serif;
+  text-transform: uppercase; 
+  letter-spacing: -0.02em; 
+}
+
+.card-gradient { 
+  background: linear-gradient(180deg, rgba(255,107,0,0.1) 0%, rgba(255,215,0,0.05) 100%); 
+}
+
+.featured-badge { 
+  box-shadow: 0 0 15px rgba(255, 215, 0, 0.4); 
+}
+
+.glass { 
+  background: rgba(255, 255, 255, 0.03); 
+  backdrop-filter: blur(10px); 
+  border: 1px solid rgba(255, 255, 255, 0.1); 
+}
+
+/* Hide scrollbar for cleaner UI */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-gh-black);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-gh-black-light);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-gh-muted);
+}
