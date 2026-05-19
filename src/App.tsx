@@ -224,11 +224,9 @@ export default function App() {
     try {
       const res = await fetch('/api/scan', { method: 'POST' });
       if (res.ok) {
-        // Wait 15 seconds to give backend time to fetch from Gemini and then pull newest
-        setTimeout(() => {
-          fetchEvents();
-          setIsScanningBackend(false);
-        }, 15000);
+        // Backend now awaits the scan completion on serverless
+        fetchEvents();
+        setIsScanningBackend(false);
       } else {
         alert("Scan already in progress or failed.");
         setIsScanningBackend(false);

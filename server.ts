@@ -61,7 +61,7 @@ async function scanEvents() {
         const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
         const response = await ai.models.generateContent({
           model: 'gemini-2.5-flash',
-          contents: "Find the best upcoming events, concerts, campus parties, and comedy shows in Accra, Kumasi, and other major cities in Ghana for 2026. Give me exactly 24 events. Return the data ONLY as RAW JSON with no markdown block ticks. It must be an array of objects. Keys: id (string), name (string), date (YYYY-MM-DD), time (HH:MM AM/PM), venue, city, category (Concert, Party, Campus, Comedy, Festival, or Other), price, description, sourceLink, sourcePlatform (Gemini Search), coverImage (can be empty string).",
+          contents: "Find the best upcoming events, concerts, campus parties, and comedy shows in Accra, Kumasi, and other major cities in Ghana for 2026. Give me exactly 12 events. Return the data ONLY as RAW JSON with no markdown block ticks. It must be an array of objects. Keys: id (string), name (string), date (YYYY-MM-DD), time (HH:MM AM/PM), venue, city, category (Concert, Party, Campus, Comedy, Festival, or Other), price, description, sourceLink, sourcePlatform (Gemini Search), coverImage (can be empty string).",
           config: {
             tools: [{ googleSearch: {} }] // Using Search Grounding
           }
@@ -256,13 +256,14 @@ app.delete('/api/events/:id', (req, res) => {
 app.post('/api/scan', async (req, res) => {
   try {
     if (!isScanning) {
-      scanEvents();
-      res.json({ message: 'Scan started' });
+      // Must await for serverless environments (like Vercel) because background tasks are killed
+      await scanEvents();
+      res.json({ message: 'Scan complete', count: cachedScannedEvents.length });
     } else {
       res.status(429).json({ message: 'Scan already in progress' });
     }
   } catch (error) {
-    res.status(500).json({ error: 'Failed to start scan' });
+    res.status(500).json({ error: 'Failed to complete scan' });
   }
 });
 
