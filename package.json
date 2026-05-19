@@ -1,7 +1,8 @@
 {
-  "name": "react-example",
+  "name": "nightout-gh",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "Events and Nightlife Discovery web app for Ghanaian youth.",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",

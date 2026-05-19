@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, MapPin, Calendar, Clock, ExternalLink, Ticket, Filter, Play, Plus, Map, Share2, Youtube, Flame, Check } from 'lucide-react';
+import { Search, MapPin, Calendar, Clock, ExternalLink, Ticket, Filter, Play, Plus, Map, Share2, Youtube, Flame, Check, Star, MessageSquare, Trash2 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { EventItem } from './types';
+import { EventItem, Review } from './types';
 
 // Utility for merging tailwind classes
 function cn(...inputs: ClassValue[]) {
@@ -18,13 +18,122 @@ const LOADING_MESSAGES = [
   "Looking for the best vibes... 🎵"
 ];
 
+const EVENT_IMAGES = {
+  concert: [
+    'https://images.unsplash.com/photo-1540039155732-d674d0e80062?auto=format&fit=crop&q=80&w=800',
+    'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&q=80&w=800',
+    'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?auto=format&fit=crop&q=80&w=800',
+    'https://images.unsplash.com/photo-1470229722913-7c092db62220?auto=format&fit=crop&q=80&w=800',
+    'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=800'
+  ],
+  party: [
+    'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&q=80&w=800',
+    'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&q=80&w=800',
+    'https://images.unsplash.com/photo-1533174000220-4b4116bb9a33?auto=format&fit=crop&q=80&w=800',
+    'https://images.unsplash.com/photo-1566737236500-c8ac43014a67?auto=format&fit=crop&q=80&w=800',
+    'https://images.unsplash.com/photo-1557804506-669a67965ba0?auto=format&fit=crop&q=80&w=800'
+  ],
+  tech: [
+    'https://images.unsplash.com/photo-1540317580384-e5d43867caa6?auto=format&fit=crop&q=80&w=800',
+    'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?auto=format&fit=crop&q=80&w=800',
+    'https://images.unsplash.com/photo-1515187029135-18ee286d815b?auto=format&fit=crop&q=80&w=800',
+    'https://images.unsplash.com/photo-1559223607-a43c990c692c?auto=format&fit=crop&q=80&w=800'
+  ],
+  culture: [
+    'https://images.unsplash.com/photo-1542820229-081e0c12af0b?auto=format&fit=crop&q=80&w=800',
+    'https://images.unsplash.com/photo-1520262454473-a1a82276a574?auto=format&fit=crop&q=80&w=800',
+    'https://images.unsplash.com/photo-1514533450685-4493e01d1fdc?auto=format&fit=crop&q=80&w=800',
+    'https://images.unsplash.com/photo-1606293926075-69a00dbfde81?auto=format&fit=crop&q=80&w=800'
+  ],
+  comedy: [
+    'https://images.unsplash.com/photo-1585699324551-f6c309eedeca?auto=format&fit=crop&q=80&w=800',
+    'https://images.unsplash.com/photo-1527224857830-43a7eea85e4e?auto=format&fit=crop&q=80&w=800',
+    'https://images.unsplash.com/photo-1507676184212-d0330a15168b?auto=format&fit=crop&q=80&w=800'
+  ]
+};
+
+function getImagesForEvent(event: EventItem): string[] {
+  const text = `${event.name} ${event.category} ${event.description}`.toLowerCase();
+  
+  if (text.includes('tech') || text.includes('startup') || text.includes('hackathon') || text.includes('business') || text.includes('conference')) {
+    return EVENT_IMAGES.tech;
+  }
+  if (text.includes('comedy') || text.includes('laugh') || text.includes('jokes')) {
+    return EVENT_IMAGES.comedy;
+  }
+  if (text.includes('culture') || text.includes('art') || text.includes('food') || text.includes('beach') || text.includes('africa')) {
+    return EVENT_IMAGES.culture;
+  }
+  if (text.includes('party') || text.includes('club') || text.includes('dj') || text.includes('rave')) {
+    return EVENT_IMAGES.party;
+  }
+  
+  // Default to concert/festival which look generally good and vibrant
+  return EVENT_IMAGES.concert;
+}
+
+function getSpecificImage(event: EventItem): string {
+  let seedId = 0;
+  for (let i = 0; i < (event.id?.length || 0); i++) {
+    seedId += event.id.charCodeAt(i);
+  }
+  for (let i = 0; i < (event.name?.length || 0); i++) {
+    seedId += event.name.charCodeAt(i);
+  }
+  
+  const pool = getImagesForEvent(event);
+  return pool[seedId % pool.length];
+}
+
+function EventImage({ event }: { event: EventItem }) {
+  const [imgSrc, setImgSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (event.coverImage && typeof event.coverImage === 'string' && event.coverImage.trim() !== '' && event.coverImage !== 'null') {
+      setImgSrc(event.coverImage);
+    } else {
+      setImgSrc(getSpecificImage(event));
+    }
+  }, [event.coverImage, event.id, event.name]);
+
+  const handleError = () => {
+    // If cover image fails, map to our fallback pool
+    if (imgSrc === event.coverImage) {
+       setImgSrc(getSpecificImage(event));
+    } else {
+       // If even the fallback fails... show generic
+       setImgSrc(null);
+    }
+  };
+
+  if (!imgSrc) {
+    return (
+      <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#FF6B00]/20 to-[#FFD700]/10">
+        <Flame className="w-12 h-12 mb-2 text-[#FFD700]/30" />
+        <span className="text-white/40 font-bold uppercase tracking-widest text-[10px] text-center px-4 line-clamp-2">{event.category || 'Event'}</span>
+      </div>
+    );
+  }
+
+  return (
+    <img 
+      loading="lazy"
+      src={imgSrc} 
+      alt={event.name || 'Event'} 
+      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+      onError={handleError}
+      referrerPolicy="no-referrer"
+    />
+  );
+}
+
 function Badge({ children, className, variant = 'default' }: { children: React.ReactNode, className?: string, variant?: 'default' | 'gold' | 'outline' }) {
   return (
     <span className={cn(
       "px-2 py-1 text-xs font-semibold rounded-md tracking-wide",
       {
         'bg-gh-black-light text-white border border-white/10': variant === 'default',
-        'bg-gradient-to-r from-gh-gold to-yellow-500 text-gh-black': variant === 'gold',
+        'bg-gradient-to-r from-red-500 to-gh-orange text-gh-black': variant === 'gold',
         'border border-gh-orange text-gh-orange': variant === 'outline',
       },
       className
@@ -39,7 +148,8 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [loadingMessageIdx, setLoadingMessageIdx] = useState(0);
   const [errorLogs, setErrorLogs] = useState<string[]>([]);
-  
+  const [isScanningBackend, setIsScanningBackend] = useState(false);
+
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [cityFilter, setCityFilter] = useState('All');
@@ -48,6 +158,12 @@ export default function App() {
 
   // Modal
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
+  const [isContactModalOpen, setIsContactModalOpen] = useState(false);
+
+  // Reviews State
+  const [reviews, setReviews] = useState<Record<string, Review[]>>({});
+  const [reviewModalEventId, setReviewModalEventId] = useState<string | null>(null);
+  const [reviewRating, setReviewRating] = useState(5);
 
   // Community Submitted State (would be a real DB in prod)
   const [communityEvents, setCommunityEvents] = useState<EventItem[]>([
@@ -103,6 +219,43 @@ export default function App() {
     }
   };
 
+  const scanForMoreEvents = async () => {
+    setIsScanningBackend(true);
+    try {
+      const res = await fetch('/api/scan', { method: 'POST' });
+      if (res.ok) {
+        // Wait 15 seconds to give backend time to fetch from Gemini and then pull newest
+        setTimeout(() => {
+          fetchEvents();
+          setIsScanningBackend(false);
+        }, 15000);
+      } else {
+        alert("Scan already in progress or failed.");
+        setIsScanningBackend(false);
+      }
+    } catch(err) {
+      setIsScanningBackend(false);
+      alert("Failed to start scan");
+    }
+  };
+
+  const handleRemoveEvent = async (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!window.confirm("Are you sure you want to remove this event?")) return;
+    
+    // Optimistic UI update
+    setEvents(prev => prev.filter(ev => ev.id !== id));
+    setCommunityEvents(prev => prev.filter(ev => ev.id !== id));
+    
+    try {
+      await fetch(`/api/events/${id}`, { method: 'DELETE' });
+      // Optionally refetch to be sure
+      // fetchEvents();
+    } catch (err) {
+      console.error('Failed to remove event:', err);
+    }
+  };
+
   const allEvents = useMemo(() => {
     return [...communityEvents, ...events];
   }, [events, communityEvents]);
@@ -143,9 +296,20 @@ export default function App() {
     });
   }, [allEvents, searchQuery, cityFilter, categoryFilter, dateFilter]);
 
-  const handleCommunitySubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleCommunitySubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    
+    const getBase64 = (file: File | null): Promise<string> => new Promise((resolve) => {
+      if (!file || file.size === 0) return resolve('');
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.readAsDataURL(file);
+    });
+
+    const file = formData.get('coverImage') as File | null;
+    const coverImageBase64 = await getBase64(file);
+
     const newEvent: EventItem = {
       id: `comm_${Date.now()}`,
       name: formData.get('name') as string,
@@ -159,25 +323,46 @@ export default function App() {
       sourceLink: formData.get('sourceLink') as string,
       sourcePlatform: 'Community',
       isCommunitySubmitted: true,
-      coverImage: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&q=80&w=800',
+      coverImage: coverImageBase64,
     };
     
-    setCommunityEvents([newEvent, ...communityEvents]);
+    try {
+      await fetch('/api/events', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newEvent),
+      });
+      fetchEvents();
+    } catch(err) {
+      console.error(err);
+      setCommunityEvents([newEvent, ...communityEvents]);
+    }
     setIsSubmitModalOpen(false);
   };
 
   return (
-    <div className="min-h-screen bg-gh-black text-white selection:bg-gh-orange selection:text-white pb-20">
+    <div className="min-h-screen text-white selection:bg-gh-orange selection:text-white pb-20">
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-gh-black/90 backdrop-blur-md border-b border-white/10">
+      <motion.header 
+        initial={{ y: -100 }}
+        animate={{ y: 0 }}
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        className="sticky top-0 z-40 bg-gh-black/90 backdrop-blur-md border-b border-white/10"
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row justify-between items-center sm:h-20 py-4 sm:py-0 gap-4">
             <div className="flex items-center gap-3 cursor-pointer" onClick={() => { setSearchQuery(''); fetchEvents(); }}>
-              <div className="w-10 h-10 bg-gh-orange flex items-center justify-center font-bold text-black rounded-sm text-lg">
-                🇬🇭
-              </div>
-              <h1 className="text-3xl font-display tracking-tightest">
-                <span className="text-gh-gold">NIGHTOUT</span> GH
+              <motion.div 
+                whileHover={{ rotate: 90 }}
+                transition={{ type: "spring", stiffness: 200, damping: 10 }}
+                className="w-10 h-10 bg-gh-orange text-gh-black flex items-center justify-center font-display text-2xl font-black rounded-sm shadow-lg shadow-gh-orange/20"
+              >
+                N
+              </motion.div>
+              <h1 className="text-3xl font-display leading-none">
+                <span className="text-white">NIGHTOUT</span><span className="text-gh-orange">.</span>
               </h1>
             </div>
             
@@ -192,31 +377,103 @@ export default function App() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
-              <button 
+              <motion.button 
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={scanForMoreEvents}
+                disabled={isScanningBackend}
+                className="hidden sm:flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white px-5 py-2 rounded-full font-medium transition-colors border border-white/10 text-sm whitespace-nowrap disabled:opacity-50"
+              >
+                {isScanningBackend ? 'Scanning...' : 'Scan New Events'}
+              </motion.button>
+              <motion.button 
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setIsContactModalOpen(true)}
+                className="hidden sm:flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white px-5 py-2 rounded-full font-medium transition-colors border border-white/10 text-sm whitespace-nowrap"
+              >
+                Contact
+              </motion.button>
+              <motion.button 
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => setIsSubmitModalOpen(true)}
                 className="hidden sm:flex items-center gap-2 text-sm font-semibold text-gh-gold border border-gh-gold px-4 py-2 rounded-full featured-badge hover:bg-gh-gold/10 transition-colors"
               >
                 <Plus className="w-4 h-4" />
                 <span>PROMOTE YOUR EVENT</span>
-              </button>
+              </motion.button>
             </div>
           </div>
         </div>
-      </header>
+      </motion.header>
 
-      <div className="bg-gh-gold/10 px-4 sm:px-8 py-2 flex flex-col sm:flex-row sm:items-center justify-between border-b border-gh-gold/20 shrink-0 gap-2">
-        <div className="flex items-center gap-3 text-xs font-bold uppercase tracking-widest">
-          <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-          <span className="text-gh-gold">Scanning {cityFilter === 'All' ? 'all regions' : cityFilter}... 👀</span>
+      <motion.div 
+        initial={{ opacity: 0, height: 0 }}
+        animate={{ opacity: 1, height: 'auto' }}
+        transition={{ delay: 0.2 }}
+        className="bg-gh-gold text-gh-black px-4 sm:px-8 py-2 flex flex-col sm:flex-row sm:items-center justify-between border-b border-gh-gold/20 shrink-0 gap-2 overflow-hidden"
+      >
+        <div className="flex items-center gap-3 text-xs font-bold uppercase tracking-wide">
+          <motion.span 
+            animate={{ opacity: [1, 0.5, 1] }}
+            transition={{ repeat: Infinity, duration: 1.5 }}
+            className="w-2 h-2 bg-gh-orange rounded-full"
+          ></motion.span>
+          <span>Scanning {cityFilter === 'All' ? 'all regions' : cityFilter}...</span>
         </div>
-        <div className="flex gap-4 text-[10px] font-mono opacity-60 italic">
-          <span className="text-gh-orange">LIVE FEED:</span> {filteredEvents.length} events found
+        <div className="flex gap-4 text-[11px] font-mono opacity-80 uppercase tracking-wider font-semibold">
+          <span>{filteredEvents.length} events found</span>
         </div>
-      </div>
+      </motion.div>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Massive Editorial Hero */}
+      {!loading && (
+        <motion.div 
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+          className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24 border-b border-white/5 mb-8"
+        >
+          <motion.h2 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 1, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+            className="text-[clamp(3rem,8vw,8rem)] leading-[0.85] font-display text-white drop-shadow-2xl z-10 pb-4"
+          >
+            <motion.span
+              animate={{ opacity: [0.7, 1, 0.7] }}
+              transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
+            >GHANA IS</motion.span><br />
+            <motion.span
+               animate={{ scale: [1, 1.05, 1], filter: ["var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow) hue-rotate(0deg)", "var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow) hue-rotate(15deg)", "var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow) hue-rotate(0deg)"] }}
+               transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
+               className="inline-block text-gh-orange italic pr-4 drop-shadow-[0_0_15px_rgba(255,90,31,0.6)]"
+            >ALIVE</motion.span> 
+            <motion.span
+              animate={{ opacity: [0.7, 1, 0.7] }}
+              transition={{ repeat: Infinity, duration: 3, ease: "easeInOut", delay: 1.5 }}
+            >TONIGHT.</motion.span>
+          </motion.h2>
+          <motion.p 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 1, delay: 0.3 }}
+            className="max-w-2xl text-gh-muted text-lg mt-8 font-medium"
+          >
+            Curated events from across the country. From massive festivals in <span className="text-gh-gold">Accra</span> to intimate campus parties in <span className="text-gh-gold">Kumasi</span>. Finding the vibe has never been easier.
+          </motion.p>
+        </motion.div>
+      )}
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
         {/* Filters */}
-        <div className="flex flex-wrap items-center gap-4 mb-8 p-4 glass rounded-2xl">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="flex flex-wrap items-center gap-4 mb-8 p-4 glass rounded-2xl"
+        >
           <div className="flex items-center gap-2 text-gh-muted mr-2">
             <Filter className="w-4 h-4" />
             <span className="text-sm font-medium uppercase tracking-wider">Filters</span>
@@ -278,7 +535,7 @@ export default function App() {
           >
             Refresh Events
           </button>
-        </div>
+        </motion.div>
 
         {/* Status Indicators */}
         {errorLogs.length > 0 && !loading && (
@@ -345,23 +602,19 @@ export default function App() {
                   key={ev.id}
                   layoutId={ev.id}
                   variants={{
-                    hidden: { opacity: 0, y: 20 },
-                    show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
+                    hidden: { opacity: 0, y: 30, scale: 0.95 },
+                    show: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 350, damping: 25 } }
                   }}
+                  whileHover={{ y: -8, scale: 1.02, transition: { duration: 0.2 } }}
+                  whileTap={{ scale: 0.98 }}
                   className={cn(
-                    "group flex flex-col glass rounded-2xl overflow-hidden transition-all duration-300 hover:scale-[1.02]",
-                    ev.isPromoted ? "card-gradient border-gh-gold shadow-2xl z-10" : "hover:bg-white/5"
+                    "group flex flex-col glass rounded-2xl overflow-hidden transition-all duration-300",
+                    ev.isPromoted ? "card-gradient border-gh-gold shadow-2xl z-10" : "hover:bg-white/5 hover:shadow-2xl hover:shadow-gh-orange/10 border border-white/5 hover:border-white/20"
                   )}
                 >
                   {/* Image / Cover */}
                   <div className="relative w-full aspect-[4/3] bg-gradient-to-br from-gh-black-light to-gh-black overflow-hidden">
-                    {ev.coverImage ? (
-                      <img src={ev.coverImage} alt={ev.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                    ) : (
-                      <div className="absolute inset-0 flex items-center flex-col justify-center opacity-30">
-                        <Flame className="w-16 h-16 mb-2 text-gh-orange/50" />
-                      </div>
-                    )}
+                    <EventImage event={ev} />
                     {/* Overlays */}
                     <div className="absolute top-3 left-3 flex flex-col gap-2 shadow-lg">
                       {ev.isCommunitySubmitted && <Badge variant="gold" className="shadow-black/50 shadow-md">Community Choice ✨</Badge>}
@@ -369,6 +622,13 @@ export default function App() {
                     </div>
                     
                     <div className="absolute top-3 right-3 flex gap-1">
+                      <button 
+                        onClick={(e) => handleRemoveEvent(ev.id, e)}
+                        className="bg-black/60 backdrop-blur-md p-1.5 rounded-lg border border-white/10 hover:bg-red-500/80 transition-colors"
+                        title="Remove Event"
+                      >
+                        <Trash2 className="w-4 h-4 text-white/90" />
+                      </button>
                       <div className="bg-black/60 backdrop-blur-md p-1.5 rounded-lg border border-white/10">
                         {ev.sourcePlatform === 'YouTube' ? <Youtube className="w-4 h-4 text-red-500" /> : <Share2 className="w-4 h-4 text-white/80" />}
                       </div>
@@ -401,7 +661,47 @@ export default function App() {
                       {ev.description || "More details coming soon..."}
                     </p>
 
-                    <div className="mt-auto pt-4 flex gap-2 items-center justify-between">
+                    {/* Reviews snippet */}
+                    {(() => {
+                      const eventReviews = reviews[ev.id] || [];
+                      const avgRating = eventReviews.length 
+                        ? (eventReviews.reduce((acc, r) => acc + r.rating, 0) / eventReviews.length).toFixed(1)
+                        : null;
+                      return (
+                        <div className="flex items-center justify-between mb-4 border-t border-white/5 pt-3">
+                           <div className="flex items-center gap-1 group/rating relative cursor-pointer">
+                             <Star className={cn("w-3.5 h-3.5", avgRating ? "text-gh-gold fill-gh-gold" : "text-white/20")} />
+                             <span className="text-xs font-semibold">{avgRating ? `${avgRating} (${eventReviews.length})` : 'No reviews'}</span>
+                             
+                             {/* Tooltip for recent reviews */}
+                             {eventReviews.length > 0 && (
+                               <div className="absolute bottom-full left-0 mb-2 w-64 bg-gh-black border border-white/10 rounded-lg p-3 shadow-xl opacity-0 group-hover/rating:opacity-100 pointer-events-none transition-opacity z-20">
+                                 <p className="text-[10px] font-bold text-gh-gold uppercase mb-2 border-b border-white/10 pb-1">Recent Reviews</p>
+                                 <div className="space-y-2">
+                                   {eventReviews.slice(0, 3).map(r => (
+                                     <div key={r.id} className="text-xs">
+                                       <div className="flex items-center justify-between">
+                                         <span className="font-semibold text-white/90">{r.author}</span>
+                                         <span className="text-gh-gold flex items-center"><Star className="w-2.5 h-2.5 fill-gh-gold mr-0.5"/>{r.rating}</span>
+                                       </div>
+                                       <p className="text-white/60 line-clamp-2 mt-0.5">{r.comment}</p>
+                                     </div>
+                                   ))}
+                                 </div>
+                               </div>
+                             )}
+                           </div>
+                           <button 
+                             onClick={() => { setReviewModalEventId(ev.id); setReviewRating(5); }}
+                             className="text-xs text-gh-orange hover:text-white transition-colors flex items-center gap-1"
+                           >
+                             <MessageSquare className="w-3.5 h-3.5" /> Write Review
+                           </button>
+                        </div>
+                      );
+                    })()}
+
+                    <div className="mt-auto flex gap-2 items-center justify-between">
                       <span className="text-[10px] font-bold opacity-40 uppercase tracking-tighter flex items-center gap-1">
                         {ev.sourcePlatform === 'YouTube' && <span className="w-2 h-2 rounded-full bg-red-600"></span>}
                         {ev.sourcePlatform}
@@ -412,7 +712,7 @@ export default function App() {
                         rel="noopener noreferrer"
                         className={cn(
                           "px-4 py-2 rounded-lg font-bold text-xs transition-colors text-center inline-flex items-center gap-2",
-                          ev.isPromoted ? "bg-gh-gold text-black hover:bg-yellow-400" : "bg-white/10 text-white hover:bg-white/20"
+                          ev.isPromoted ? "bg-gh-gold text-black hover:opacity-90" : "bg-white/10 text-white hover:bg-white/20"
                         )}
                       >
                         {ev.sourcePlatform === 'YouTube' ? 'WATCH PROMO' : ev.isPromoted ? 'GET TICKETS' : 'VIEW DETAILS'}
@@ -428,12 +728,81 @@ export default function App() {
       </main>
 
       {/* Floating Action Button (Mobile) */}
-      <button 
+      <motion.button 
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ delay: 0.5, type: "spring", stiffness: 300 }}
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
         onClick={() => setIsSubmitModalOpen(true)}
-        className="sm:hidden fixed bottom-6 right-6 w-14 h-14 bg-gh-orange rounded-full shadow-lg shadow-gh-orange/20 flex items-center justify-center text-gh-black z-50 hover:scale-105 active:scale-95 transition-transform"
+        className="sm:hidden fixed bottom-6 right-6 w-14 h-14 bg-gh-orange rounded-full shadow-lg shadow-gh-orange/20 flex items-center justify-center text-gh-black z-50 transition-transform"
       >
         <Plus className="w-6 h-6" />
-      </button>
+      </motion.button>
+
+      {/* Review Modal */}
+      <AnimatePresence>
+        {reviewModalEventId && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto"
+            onClick={() => setReviewModalEventId(null)}
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-gh-black border border-white/10 rounded-2xl p-6 w-full max-w-sm my-8"
+            >
+              <h2 className="text-xl font-heading font-bold mb-1">Write a Review</h2>
+              <p className="text-xs text-gh-muted mb-4">Share your experience about this event.</p>
+              
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.currentTarget);
+                  const newReview: Review = {
+                    id: Math.random().toString(36).substr(2, 9),
+                    eventId: reviewModalEventId,
+                    rating: reviewRating,
+                    author: (formData.get('author') as string) || 'Anonymous',
+                    comment: formData.get('comment') as string,
+                    date: new Date().toISOString().split('T')[0]
+                  };
+                  setReviews(prev => ({ ...prev, [reviewModalEventId]: [newReview, ...(prev[reviewModalEventId] || [])] }));
+                  setReviewModalEventId(null);
+                }}
+                className="space-y-4"
+              >
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button type="button" key={star} onClick={() => setReviewRating(star)} className="focus:outline-none hover:scale-110 transition-transform">
+                      <Star className={cn("w-8 h-8", star <= reviewRating ? "text-gh-gold fill-gh-gold" : "text-white/20 fill-transparent")} />
+                    </button>
+                  ))}
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-white/70 uppercase">Name (Optional)</label>
+                  <input name="author" type="text" placeholder="John Doe" className="w-full bg-gh-black-light border border-white/10 rounded-xl px-4 py-2 text-sm focus:border-gh-gold outline-none" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-white/70 uppercase">Comments</label>
+                  <textarea required name="comment" rows={3} placeholder="Tell us about your experience..." className="w-full bg-gh-black-light border border-white/10 rounded-xl px-4 py-2 text-sm focus:border-gh-gold outline-none resize-none"></textarea>
+                </div>
+                <div className="pt-2 flex gap-3">
+                  <button type="button" onClick={() => setReviewModalEventId(null)} className="flex-1 px-4 py-2 rounded-xl font-medium bg-white/5 hover:bg-white/10 transition-colors">Cancel</button>
+                  <button type="submit" className="flex-1 px-4 py-2 rounded-xl font-medium bg-gh-gold text-black hover:opacity-90 transition-colors flex justify-center items-center gap-2">
+                    <Check className="w-4 h-4"/> Post Review
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Submit Modal */}
       <AnimatePresence>
@@ -534,9 +903,14 @@ export default function App() {
                   <input required name="sourceLink" type="url" placeholder="https://instagram.com/..." className="w-full bg-gh-black-light border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-gh-orange outline-none" />
                 </div>
 
+                <div className="space-y-1 mb-2">
+                  <label className="text-xs font-semibold text-white/70 uppercase">Cover Image (Optional)</label>
+                  <input name="coverImage" type="file" accept="image/*" className="w-full bg-gh-black-light border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-gh-orange outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-white/10 file:text-white hover:file:bg-white/20" />
+                </div>
+
                 <div className="space-y-1 mb-6">
                   <label className="text-xs font-semibold text-white/70 uppercase">Short Description</label>
-                  <textarea name="description" rows={2} placeholder="Vibes on vibes..." className="w-full bg-gh-black-light border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-gh-orange outline-none resize-none"></textarea>
+                  <textarea required name="description" rows={2} placeholder="Vibes on vibes..." className="w-full bg-gh-black-light border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-gh-orange outline-none resize-none"></textarea>
                 </div>
 
                 <div className="pt-4 flex gap-3">
@@ -553,6 +927,112 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Contact Admin Modal */}
+      <AnimatePresence>
+        {isContactModalOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            onClick={() => setIsContactModalOpen(false)}
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-gh-black border border-white/10 rounded-2xl p-6 w-full max-w-sm my-8"
+            >
+              <h2 className="text-xl font-heading font-bold mb-1">Contact Us</h2>
+              <p className="text-xs text-gh-muted mb-4">Want us to add your event or need help? Send a message below.</p>
+
+              <div className="mb-4">
+                <a 
+                  href="https://wa.me/233508069257?text=Hi!%20I%20want%20to%20submit%20an%20event." 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex justify-center items-center gap-2 w-full px-4 py-2 rounded-xl font-medium bg-[#25D366] text-white hover:bg-[#128C7E] transition-colors shadow-lg"
+                >
+                  <MessageSquare className="w-4 h-4" /> Reach out on WhatsApp
+                </a>
+              </div>
+              
+              <div className="flex items-center gap-2 mb-4">
+                <hr className="flex-1 border-white/10" />
+                <span className="text-xs text-white/40 uppercase font-semibold">Or email us</span>
+                <hr className="flex-1 border-white/10" />
+              </div>
+              
+              <form 
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.currentTarget);
+                  try {
+                    await fetch('/api/contact', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        name: formData.get('name'),
+                        email: formData.get('email'),
+                        message: formData.get('message')
+                      })
+                    });
+                    setIsContactModalOpen(false);
+                    alert("Message sent successfully!");
+                  } catch (err) {
+                    console.error(err);
+                  }
+                }}
+                className="space-y-4"
+              >
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-white/70 uppercase">Name</label>
+                  <input required name="name" type="text" placeholder="Your Name" className="w-full bg-gh-black-light border border-white/10 rounded-xl px-4 py-2 text-sm focus:border-gh-gold outline-none" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-white/70 uppercase">Email</label>
+                  <input required name="email" type="email" placeholder="you@example.com" className="w-full bg-gh-black-light border border-white/10 rounded-xl px-4 py-2 text-sm focus:border-gh-gold outline-none" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-white/70 uppercase">Message</label>
+                  <textarea required name="message" rows={4} placeholder="How can we help?" className="w-full bg-gh-black-light border border-white/10 rounded-xl px-4 py-2 text-sm focus:border-gh-gold outline-none resize-none"></textarea>
+                </div>
+                <div className="pt-2 flex gap-3">
+                  <button type="button" onClick={() => setIsContactModalOpen(false)} className="flex-1 px-4 py-2 rounded-xl font-medium bg-white/5 hover:bg-white/10 transition-colors">Cancel</button>
+                  <button type="submit" className="flex-1 px-4 py-2 rounded-xl font-medium bg-gh-gold text-black hover:opacity-90 transition-colors">
+                    Send Message
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Floating WhatsApp Button */}
+      <a
+        href="https://wa.me/233508069257?text=Hi!%20I'm%20visiting%20your%20site%20and%20would%20like%20to%20get%20in%20touch."
+        target="_blank"
+        rel="noopener noreferrer"
+        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-2xl transition-transform hover:scale-110 hover:bg-[#128C7E]"
+        aria-label="Contact on WhatsApp"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="32"
+          height="32"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+        </svg>
+      </a>
     </div>
   );
 }

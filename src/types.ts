@@ -1,5 +1,14 @@
 export type Category = 'Concert' | 'Party' | 'Campus' | 'Comedy' | 'Festival' | 'Other';
 
+export interface Review {
+  id: string;
+  eventId: string;
+  rating: number;
+  comment: string;
+  author: string;
+  date: string;
+}
+
 export interface EventItem {
   id: string;
   name: string;
