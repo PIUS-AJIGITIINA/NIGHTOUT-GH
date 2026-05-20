@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, MapPin, Calendar, Clock, ExternalLink, Ticket, Filter, Play, Plus, Map, Share2, Youtube, Flame, Check, Star, MessageSquare, Trash2 } from 'lucide-react';
+import { Search, MapPin, Calendar, Clock, ExternalLink, Ticket, Filter, Play, Plus, Map, Share2, Youtube, Flame, Check, Star, MessageSquare, Trash2, X, Bookmark } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { EventItem, Review } from './types';
@@ -74,11 +74,9 @@ function getImagesForEvent(event: EventItem): string[] {
 
 function getSpecificImage(event: EventItem): string {
   let seedId = 0;
-  for (let i = 0; i < (event.id?.length || 0); i++) {
-    seedId += event.id.charCodeAt(i);
-  }
-  for (let i = 0; i < (event.name?.length || 0); i++) {
-    seedId += event.name.charCodeAt(i);
+  const seedString = (event.id || '') + (event.name || '');
+  for (let i = 0; i < seedString.length; i++) {
+    seedId = (seedId * 31 + seedString.charCodeAt(i)) >>> 0;
   }
   
   const pool = getImagesForEvent(event);
@@ -152,13 +150,54 @@ export default function App() {
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
+  
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+  
   const [cityFilter, setCityFilter] = useState('All');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [dateFilter, setDateFilter] = useState('All');
+  const [sortOption, setSortOption] = useState<'DateAsc' | 'Recent'>('DateAsc');
 
   // Modal
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
+  const [googleImporting, setGoogleImporting] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null);
+
+  // Bookmarks
+  const [savedEventIds, setSavedEventIds] = useState<Record<string, boolean>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('nightout_saved') || '{}');
+    } catch {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('nightout_saved', JSON.stringify(savedEventIds));
+  }, [savedEventIds]);
+
+  const toggleBookmark = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    setSavedEventIds(prev => {
+      const next = { ...prev };
+      if (next[id]) delete next[id];
+      else next[id] = true;
+      return next;
+    });
+  };
 
   // Reviews State
   const [reviews, setReviews] = useState<Record<string, Review[]>>({});
@@ -207,8 +246,16 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         setEvents(data.events || []);
-        if (data.errors?.length) {
-          setErrorLogs(data.errors);
+        
+        // Parse cache metadata errors
+        if (data.errors) {
+           let eList: string[] = [];
+           if (Array.isArray(data.errors)) {
+               eList = data.errors;
+           } else if (typeof data.errors === 'object') {
+               eList = Object.entries(data.errors).map(([src, msg]) => `${src}: ${msg}`);
+           }
+           if (eList.length > 0) setErrorLogs(eList);
         }
       }
     } catch (err) {
@@ -221,19 +268,21 @@ export default function App() {
 
   const scanForMoreEvents = async () => {
     setIsScanningBackend(true);
+    showToast("Starting deep scan... This may take a minute.", 'success');
     try {
       const res = await fetch('/api/scan', { method: 'POST' });
       if (res.ok) {
         // Backend now awaits the scan completion on serverless
         fetchEvents();
         setIsScanningBackend(false);
+        showToast("Scan completed successfully.", 'success');
       } else {
-        alert("Scan already in progress or failed.");
+        showToast("Scan already in progress or failed.", 'error');
         setIsScanningBackend(false);
       }
     } catch(err) {
       setIsScanningBackend(false);
-      alert("Failed to start scan");
+      showToast("Failed to start scan", 'error');
     }
   };
 
@@ -261,9 +310,9 @@ export default function App() {
   const filteredEvents = useMemo(() => {
     return allEvents.filter((ev) => {
       // Free text search
-      const matchesSearch = !searchQuery || 
-        ev.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        ev.venue.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = !debouncedSearchQuery || 
+        ev.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) || 
+        ev.venue.toLowerCase().includes(debouncedSearchQuery.toLowerCase());
       
       // City
       const matchesCity = cityFilter === 'All' || 
@@ -291,8 +340,17 @@ export default function App() {
       }
 
       return matchesSearch && matchesCity && matchesCategory && matchesDate;
+    }).sort((a, b) => {
+      if (sortOption === 'DateAsc') {
+        return new Date(a.date).getTime() - new Date(b.date).getTime();
+      } else {
+        // Fallback to importedAt or just id as proxy for recent if importedAt not on EventItem type originally
+        // Since we didn't add importedAt universally, let's sort by ID descending (which has timestamp for comm_)
+        // For real app we should use importedAt
+        return b.id.localeCompare(a.id);
+      }
     });
-  }, [allEvents, searchQuery, cityFilter, categoryFilter, dateFilter]);
+  }, [allEvents, debouncedSearchQuery, cityFilter, categoryFilter, dateFilter, sortOption]);
 
   const handleCommunitySubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -342,6 +400,22 @@ export default function App() {
 
   return (
     <div className="min-h-screen text-white selection:bg-gh-orange selection:text-white pb-20">
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: -50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -50 }}
+            className={cn(
+              "fixed top-24 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-full border shadow-xl flex items-center gap-3 backdrop-blur-md",
+              toast.type === 'error' ? "bg-red-950/80 border-red-500/50 text-red-200" : "bg-gh-black/80 border-gh-gold/50 text-gh-gold"
+            )}
+          >
+            {toast.type === 'error' ? <X className="w-5 h-5 flex-shrink-0" /> : <Check className="w-5 h-5 flex-shrink-0" />}
+            <span className="font-medium text-sm whitespace-nowrap">{toast.message}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Header */}
       <motion.header 
         initial={{ y: -100 }}
@@ -391,6 +465,35 @@ export default function App() {
                 className="hidden sm:flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white px-5 py-2 rounded-full font-medium transition-colors border border-white/10 text-sm whitespace-nowrap"
               >
                 Contact
+              </motion.button>
+              <motion.button 
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={async () => {
+                  setGoogleImporting(true);
+                  try {
+                    const res = await fetch('/api/events/google', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({}) // Completely autonomous
+                    });
+                    if (res.ok) {
+                      fetchEvents();
+                      showToast("Event auto-discovered successfully", 'success');
+                    } else {
+                      const data = await res.json();
+                      showToast("Failed to auto-discover: " + (data.error || "Unknown error"), 'error');
+                    }
+                  } catch(err) {
+                    showToast("Failed to reach server", 'error');
+                  } finally {
+                    setGoogleImporting(false);
+                  }
+                }}
+                disabled={googleImporting}
+                className="hidden sm:flex items-center gap-2 bg-gradient-to-r from-blue-500 to-emerald-500 hover:from-blue-600 hover:to-emerald-600 text-white px-4 py-2 rounded-full font-medium transition-colors text-sm whitespace-nowrap shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+              >
+                <span>{googleImporting ? 'Discovering...' : 'Auto-Discover Event 🔍'}</span>
               </motion.button>
               <motion.button 
                 whileHover={{ scale: 1.05 }}
@@ -524,6 +627,15 @@ export default function App() {
             <option value="This Month">This Month</option>
           </select>
 
+          <select 
+            className="bg-gh-black border border-white/10 rounded-lg px-3 py-1.5 text-sm focus:border-white/20 outline-none"
+            value={sortOption}
+            onChange={(e) => setSortOption(e.target.value as any)}
+          >
+            <option value="DateAsc">Sort: Upcoming First</option>
+            <option value="Recent">Sort: Recently Added</option>
+          </select>
+
           <div className="flex-1"></div>
           
           <button 
@@ -535,15 +647,7 @@ export default function App() {
           </button>
         </motion.div>
 
-        {/* Status Indicators */}
-        {errorLogs.length > 0 && !loading && (
-          <div className="mb-6 p-3 bg-red-950/30 border border-red-500/20 rounded-xl text-xs text-red-200/70 font-mono">
-            <p className="font-semibold text-red-400 mb-1">Source warnings:</p>
-            <ul className="list-disc pl-4 space-y-1">
-              {errorLogs.map((log, i) => <li key={i}>{log}</li>)}
-            </ul>
-          </div>
-        )}
+        {/* Status Indicators Removed */}
 
         {/* Loading State */}
         {loading && (
@@ -569,9 +673,7 @@ export default function App() {
         {/* Empty State */}
         {!loading && filteredEvents.length === 0 && (
           <div className="py-24 flex flex-col items-center justify-center text-center">
-            <div className="w-24 h-24 mb-6 rounded-full bg-gh-black-light flex items-center justify-center border border-white/5">
-              <Map className="w-10 h-10 text-white/20" />
-            </div>
+            <div className="w-32 h-32 mb-6 opacity-30 grayscale mix-blend-screen bg-contain bg-center bg-no-repeat" style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1470229722913-7c090be8bf49?w=400&q=80)' }} />
             <h3 className="text-2xl font-display text-white mb-2">Nothing popping here yet.</h3>
             <p className="text-gh-muted max-w-md">No events found for your current filters. Tap the plus button to add your own, or check back soon 👀</p>
             <button 
@@ -586,7 +688,7 @@ export default function App() {
         {/* Event Grid */}
         {!loading && filteredEvents.length > 0 && (
           <motion.div 
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+            className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6 space-y-6"
             initial="hidden"
             animate="show"
             variants={{
@@ -599,6 +701,7 @@ export default function App() {
                 <motion.div 
                   key={ev.id}
                   layoutId={ev.id}
+                  onClick={() => setSelectedEvent(ev)}
                   variants={{
                     hidden: { opacity: 0, y: 30, scale: 0.95 },
                     show: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 350, damping: 25 } }
@@ -606,7 +709,7 @@ export default function App() {
                   whileHover={{ y: -8, scale: 1.02, transition: { duration: 0.2 } }}
                   whileTap={{ scale: 0.98 }}
                   className={cn(
-                    "group flex flex-col glass rounded-2xl overflow-hidden transition-all duration-300",
+                    "group flex flex-col glass rounded-2xl overflow-hidden transition-all duration-300 break-inside-avoid cursor-pointer shadow-xl",
                     ev.isPromoted ? "card-gradient border-gh-gold shadow-2xl z-10" : "hover:bg-white/5 hover:shadow-2xl hover:shadow-gh-orange/10 border border-white/5 hover:border-white/20"
                   )}
                 >
@@ -621,13 +724,23 @@ export default function App() {
                     
                     <div className="absolute top-3 right-3 flex gap-1">
                       <button 
-                        onClick={(e) => handleRemoveEvent(ev.id, e)}
-                        className="bg-black/60 backdrop-blur-md p-1.5 rounded-lg border border-white/10 hover:bg-red-500/80 transition-colors"
+                        onClick={(e) => toggleBookmark(e, ev.id)}
+                        className={cn(
+                          "bg-black/60 backdrop-blur-md p-1.5 rounded-lg border transition-colors z-20",
+                          savedEventIds[ev.id] ? "border-gh-gold/50 text-gh-gold" : "border-white/10 text-white hover:bg-white/20 hover:text-white"
+                        )}
+                        title={savedEventIds[ev.id] ? "Remove Bookmark" : "Save Event"}
+                      >
+                        <Bookmark className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleRemoveEvent(ev.id, e); }}
+                        className="bg-black/60 backdrop-blur-md p-1.5 rounded-lg border border-white/10 hover:bg-red-500/80 transition-colors z-20"
                         title="Remove Event"
                       >
                         <Trash2 className="w-4 h-4 text-white/90" />
                       </button>
-                      <div className="bg-black/60 backdrop-blur-md p-1.5 rounded-lg border border-white/10">
+                      <div className="bg-black/60 backdrop-blur-md p-1.5 rounded-lg border border-white/10 z-20">
                         {ev.sourcePlatform === 'YouTube' ? <Youtube className="w-4 h-4 text-red-500" /> : <Share2 className="w-4 h-4 text-white/80" />}
                       </div>
                     </div>
@@ -705,6 +818,7 @@ export default function App() {
                         {ev.sourcePlatform}
                       </span>
                       <a 
+                        onClick={(e) => e.stopPropagation()}
                         href={ev.sourceLink || '#'} 
                         target="_blank" 
                         rel="noopener noreferrer"
@@ -978,7 +1092,7 @@ export default function App() {
                       })
                     });
                     setIsContactModalOpen(false);
-                    alert("Message sent successfully!");
+                    showToast("Message sent successfully!", 'success');
                   } catch (err) {
                     console.error(err);
                   }
@@ -1004,6 +1118,98 @@ export default function App() {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Detail Modal */}
+      <AnimatePresence>
+        {selectedEvent && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto"
+            onClick={() => setSelectedEvent(null)}
+          >
+            <motion.div
+              layoutId={selectedEvent.id}
+              className="bg-gh-black border border-white/10 rounded-2xl w-full max-w-2xl my-8 overflow-hidden relative shadow-2xl"
+              onClick={e => e.stopPropagation()}
+            >
+              <button 
+                onClick={() => setSelectedEvent(null)}
+                className="absolute top-4 right-4 p-2 bg-black/60 hover:bg-black/90 backdrop-blur-md rounded-full transition-colors z-20"
+              >
+                <X className="w-5 h-5 text-white" />
+              </button>
+              
+              <div className="relative w-full h-64 sm:h-80 bg-gradient-to-br from-gh-black-light to-gh-black">
+                <EventImage event={selectedEvent} />
+                <div className="absolute inset-0 bg-gradient-to-t from-gh-black via-gh-black/40 to-transparent" />
+                <div className="absolute bottom-4 left-6 right-6">
+                  <div className="flex gap-2 mb-3">
+                    <Badge variant="gold">{selectedEvent.category}</Badge>
+                    {selectedEvent.isPromoted && <Badge variant="gold">Featured ⭐</Badge>}
+                  </div>
+                  <h2 className="text-3xl sm:text-4xl font-display font-bold leading-tight drop-shadow-lg text-white">
+                    {selectedEvent.name}
+                  </h2>
+                </div>
+              </div>
+
+              <div className="p-6 sm:p-8">
+                <div className="flex flex-col sm:flex-row gap-8">
+                  <div className="flex-1 space-y-6">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                        <Calendar className="w-5 h-5 text-gh-orange mb-2" />
+                        <div className="text-xs text-white/50 uppercase font-semibold">Date & Time</div>
+                        <div className="font-medium text-sm mt-1">{selectedEvent.date}</div>
+                        <div className="text-white/70 text-sm">{selectedEvent.time}</div>
+                      </div>
+                      <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                        <MapPin className="w-5 h-5 text-gh-gold mb-2" />
+                        <div className="text-xs text-white/50 uppercase font-semibold">Location</div>
+                        <div className="font-medium text-sm mt-1">{selectedEvent.venue}</div>
+                        <div className="text-white/70 text-sm">{selectedEvent.city}</div>
+                      </div>
+                      <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                        <Ticket className="w-5 h-5 text-afro-neon mb-2" />
+                        <div className="text-xs text-white/50 uppercase font-semibold">Price</div>
+                        <div className="font-medium text-sm mt-1">{selectedEvent.price}</div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h3 className="text-lg font-bold mb-3 border-b border-white/10 pb-2">About Event</h3>
+                      <p className="text-white/70 text-sm leading-relaxed whitespace-pre-wrap">
+                        {selectedEvent.description || "More details coming soon..."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="w-full sm:w-64 space-y-4 shrink-0">
+                    <div className="bg-gh-black-light border border-white/5 rounded-xl p-4 flex flex-col items-center justify-center min-h-[160px]">
+                      <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center mb-3">
+                        <Map className="w-5 h-5 text-gh-muted" />
+                      </div>
+                      <span className="text-xs text-white/50 text-center px-4">Map placeholder (Integration ready)</span>
+                    </div>
+
+                    <a 
+                      href={selectedEvent.sourceLink || '#'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-gh-orange to-gh-gold text-black font-bold py-3 px-4 rounded-xl hover:opacity-90 transition-all hover:scale-[1.02]"
+                    >
+                      {selectedEvent.sourcePlatform === 'YouTube' ? 'WATCH VIDEO' : 'GET TICKETS'}
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  </div>
+                </div>
+              </div>
             </motion.div>
           </motion.div>
         )}
