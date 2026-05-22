@@ -2,20 +2,26 @@ import express from 'express';
 import path from 'path';
 import cors from 'cors';
 import fs from 'fs';
-import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import { XMLParser } from 'fast-xml-parser';
 
 // For Vercel, we must write to /tmp as the rest of the filesystem is read-only
-const isVercel = process.env.VERCEL === '1';
-const dataPath = isVercel ? '/tmp/data' : path.join(process.cwd(), 'data');
-
-if (!fs.existsSync(dataPath)) {
-  fs.mkdirSync(dataPath, { recursive: true });
+const isVercel = !!process.env.VERCEL;
+let dataPath = path.join(process.cwd(), 'data');
+try {
+  if (!fs.existsSync(dataPath)) {
+    fs.mkdirSync(dataPath, { recursive: true });
+  }
+} catch(e) {
+  dataPath = '/tmp/data';
+  if (!fs.existsSync(dataPath)) {
+    fs.mkdirSync(dataPath, { recursive: true });
+  }
 }
 const eventsFilePath = path.join(dataPath, 'customEvents.json');
 const contactFilePath = path.join(dataPath, 'contactMessages.json');
 const hiddenFilePath = path.join(dataPath, 'hiddenEvents.json');
+const scannedFilePath = path.join(dataPath, 'scannedEvents.json');
 
 let customEvents: any[] = [];
 if (fs.existsSync(eventsFilePath)) {
@@ -46,9 +52,24 @@ if (fs.existsSync(hiddenFilePath)) {
 
 let cachedScannedEvents: any[] = [];
 let cachedErrors: any = {};
-let cacheMetadata = { lastScanned: "", sources: {} as Record<string, number>, errors: {} as Record<string, string> };
-let isScanning = false;
+let cacheMetadata: any = { lastScanned: "", sources: {} as Record<string, number>, errors: {} as Record<string, string> };
 let lastScanTime = 0;
+
+if (fs.existsSync(scannedFilePath)) {
+  try {
+    const data = JSON.parse(fs.readFileSync(scannedFilePath, 'utf-8'));
+    cachedScannedEvents = data.events || [];
+    cacheMetadata = data.metadata || { lastScanned: "", sources: {}, errors: {} };
+    cachedErrors = cacheMetadata.errors || {};
+    lastScanTime = data.lastScanTime || 0;
+  } catch (e) {
+    console.error('Failed to parse cached scanned events:', e);
+  }
+} else {
+  cacheMetadata = { lastScanned: "", sources: {} as Record<string, number>, errors: {} as Record<string, string> };
+}
+
+let isScanning = false;
 
 async function retryGeminiCall(fn: () => Promise<any>, maxRetries = 4) {
   let attempt = 0;
@@ -334,6 +355,17 @@ async function scanEvents() {
     cachedErrors = localErrors;
     cacheMetadata = { lastScanned: new Date().toISOString(), sources: localSources, errors: localErrors };
     lastScanTime = now;
+    
+    try {
+      fs.writeFileSync(scannedFilePath, JSON.stringify({
+         events: cachedScannedEvents,
+         metadata: cacheMetadata,
+         lastScanTime: lastScanTime
+      }));
+    } catch(err) {
+      console.error('Error saving scanned events (handled for Vercel)', err);
+    }
+    
     console.log(`Scan complete. Found ${cachedScannedEvents.length} distinct events.`);
   } catch (err: any) {
     console.error("General error in scanEvents:", err.message);
@@ -343,8 +375,10 @@ async function scanEvents() {
 }
 
 // Initial scan
-scanEvents();
-setInterval(scanEvents, 30 * 60 * 1000);
+if (!isVercel) {
+  scanEvents();
+  setInterval(scanEvents, 30 * 60 * 1000);
+}
 
 export const app = express();
 
@@ -511,9 +545,12 @@ app.post('/api/scan', async (req, res) => {
 
 app.get('/api/events', async (req, res) => {
   try {
-    // If not scanned yet, trigger now
     if (cachedScannedEvents.length === 0 && !isScanning) {
-       scanEvents();
+      if (isVercel) {
+         await scanEvents();
+      } else {
+         scanEvents();
+      }
     }
     
     const uniqueEvents = [...cachedScannedEvents];
@@ -557,6 +594,7 @@ export async function startServer() {
   const PORT = Number(process.env.PORT) || 3000;
 
   if (process.env.NODE_ENV !== 'production' && !isVercel) {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
