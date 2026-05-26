@@ -24,4 +24,6 @@ export interface EventItem {
   coverImage?: string;
   isPromoted?: boolean;
   isCommunitySubmitted?: boolean;
+  ownerId?: string;
+  createdAt?: number;
 }

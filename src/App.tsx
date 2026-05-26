@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, MapPin, Calendar, Clock, ExternalLink, Ticket, Filter, Play, Plus, Map, Share2, Youtube, Flame, Check, Star, MessageSquare, Trash2, X, Bookmark } from 'lucide-react';
+import { Search, MapPin, Calendar, Clock, ExternalLink, Ticket, Filter, Play, Plus, Map, Share2, Youtube, Flame, Check, Star, MessageSquare, Trash2, X, Bookmark, LogIn, LogOut, User as UserIcon } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { EventItem, Review } from './types';
+import { collection, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, query, orderBy } from 'firebase/firestore';
+import { signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { db, auth } from './lib/firebase';
 
 // Utility for merging tailwind classes
 function cn(...inputs: ClassValue[]) {
@@ -204,8 +207,48 @@ export default function App() {
   const [reviewModalEventId, setReviewModalEventId] = useState<string | null>(null);
   const [reviewRating, setReviewRating] = useState(5);
 
-  // Community Submitted State (would be a real DB in prod)
+  // Auth State
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogin = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    } catch (err) {
+      console.error(err);
+      showToast("Google login failed", 'error');
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Community Submitted State (from Firebase)
   const [communityEvents, setCommunityEvents] = useState<EventItem[]>([]);
+
+  useEffect(() => {
+    const q = query(collection(db, 'events'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fbEvents = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as EventItem[];
+      setCommunityEvents(fbEvents);
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     fetchEvents();
@@ -273,14 +316,25 @@ export default function App() {
     e.preventDefault();
     if (!window.confirm("Are you sure you want to remove this event?")) return;
     
-    // Optimistic UI update
+    // Check if it's a firebase document
+    const isFirebase = communityEvents.some(ev => ev.id === id);
+    
+    if (isFirebase) {
+       try {
+          await deleteDoc(doc(db, 'events', id));
+          showToast("Event removed successfully");
+       } catch (err) {
+          console.error(err);
+          showToast("Failed to remove event. Insufficient permissions?", 'error');
+       }
+       return;
+    }
+
+    // Optimistic UI update for backend events
     setEvents(prev => prev.filter(ev => ev.id !== id));
-    setCommunityEvents(prev => prev.filter(ev => ev.id !== id));
     
     try {
       await fetch(`/api/events/${id}`, { method: 'DELETE' });
-      // Optionally refetch to be sure
-      // fetchEvents();
     } catch (err) {
       console.error('Failed to remove event:', err);
     }
@@ -337,6 +391,11 @@ export default function App() {
 
   const handleCommunitySubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!user) {
+       showToast("Please login first to submit an event.", 'error');
+       return;
+    }
+
     const formData = new FormData(e.currentTarget);
     
     const getBase64 = (file: File | null): Promise<string> => new Promise((resolve) => {
@@ -347,10 +406,12 @@ export default function App() {
     });
 
     const file = formData.get('coverImage') as File | null;
-    const coverImageBase64 = await getBase64(file);
+    let coverImageBase64 = '';
+    try {
+       coverImageBase64 = await getBase64(file);
+    } catch(e) {}
 
-    const newEvent: EventItem = {
-      id: `comm_${Date.now()}`,
+    const newEvent = {
       name: formData.get('name') as string,
       date: formData.get('date') as string,
       time: formData.get('time') as string,
@@ -363,20 +424,16 @@ export default function App() {
       sourcePlatform: 'Community',
       isCommunitySubmitted: true,
       coverImage: coverImageBase64,
+      ownerId: user.uid,
+      createdAt: Date.now()
     };
     
     try {
-      await fetch('/api/events', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(newEvent),
-      });
-      fetchEvents();
+      await addDoc(collection(db, 'events'), newEvent);
+      showToast("Event posted successfully!", 'success');
     } catch(err) {
       console.error(err);
-      setCommunityEvents([newEvent, ...communityEvents]);
+      showToast("Failed to post event.", 'error');
     }
     setIsSubmitModalOpen(false);
   };
@@ -449,6 +506,31 @@ export default function App() {
               >
                 Contact
               </motion.button>
+              {user ? (
+                <div className="flex items-center gap-2">
+                  <div title={user.email || ""} className="bg-white/10 rounded-full p-2">
+                    <UserIcon className="w-4 h-4" />
+                  </div>
+                  <motion.button 
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleLogout}
+                    className="hidden sm:flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white px-5 py-2 rounded-full font-medium transition-colors border border-white/10 text-sm whitespace-nowrap"
+                  >
+                    Logout
+                  </motion.button>
+                </div>
+              ) : (
+                <motion.button 
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleLogin}
+                  className="hidden sm:flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white px-5 py-2 rounded-full font-medium transition-colors border border-white/10 text-sm whitespace-nowrap"
+                >
+                  <LogIn className="w-4 h-4" />
+                  Organizer Login
+                </motion.button>
+              )}
               <motion.button 
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}

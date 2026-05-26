@@ -1,0 +1,32 @@
+{
+  "entities": {
+    "Event": {
+      "title": "Event",
+      "description": "An event submitted by an organizer",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "venue": { "type": "string" },
+        "city": { "type": "string" },
+        "category": { "type": "string" },
+        "price": { "type": "string" },
+        "description": { "type": "string" },
+        "coverImage": { "type": "string" },
+        "sourcePlatform": { "type": "string" },
+        "sourceLink": { "type": "string" },
+        "isCommunitySubmitted": { "type": "boolean" },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["name", "date", "venue", "ownerId", "createdAt"]
+    }
+  },
+  "firestore": {
+    "events/{eventId}": {
+      "schema": "Event",
+      "description": "Events created by organizers"
+    }
+  }
+}

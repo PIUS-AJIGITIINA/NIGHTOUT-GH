@@ -444,7 +444,6 @@ app.post('/api/events/google', async (req, res) => {
     };
 
     if (process.env.GEMINI_API_KEY) {
-        const { GoogleGenAI } = require('@google/genai');
         const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
         const analysis = await ai.models.generateContent({
            model: 'gemini-2.5-flash',
@@ -483,7 +482,6 @@ app.post('/api/events/google', async (req, res) => {
     customEvents.unshift(newEvent);
     
     try {
-      const fs = require('fs');
       fs.writeFileSync(eventsFilePath, JSON.stringify(customEvents, null, 2));
     } catch (fsError) {
       console.error('Error saving to filesystem:', fsError);
@@ -542,7 +540,9 @@ app.post('/api/scan', async (req, res) => {
 
 app.get('/api/events', async (req, res) => {
   try {
-    if (cachedScannedEvents.length === 0 && !isScanning) {
+    const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+    const isStale = Date.now() - lastScanTime > CACHE_TTL;
+    if ((cachedScannedEvents.length === 0 || isStale) && !isScanning) {
       if (isVercel) {
          await scanEvents();
       } else {
@@ -596,6 +596,46 @@ export async function startServer() {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
+
+app.post('/api/subscribe', async (req, res) => {
+  const { phone } = req.body;
+  if (!phone) {
+    return res.status(400).json({ error: 'Phone number is required' });
+  }
+
+  const apiKey = process.env.AFRICASTALKING_API_KEY;
+  const username = process.env.AFRICASTALKING_USERNAME || 'sandbox';
+
+  if (!apiKey) {
+    console.log(`[Mock SMS] Sending welcome message to ${phone}`);
+    return res.status(200).json({ success: true, message: 'Subscribed to notifications (Mock)' });
+  }
+
+  try {
+    const response = await fetch('https://api.africastalking.com/version1/messaging', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'apiKey': apiKey
+      },
+      body: new URLSearchParams({
+        username: username,
+        to: phone,
+        message: 'Welcome to Aura Events! You will now receive SMS notifications for the hottest events in Ghana.'
+      })
+    });
+    
+    if (response.ok) {
+      res.status(200).json({ success: true, message: 'Subscribed to SMS notifications' });
+    } else {
+      throw new Error('Failed to send SMS');
+    }
+  } catch (error) {
+    console.error('Error sending SMS:', error);
+    res.status(500).json({ error: 'Failed to subscribe' });
+  }
+});
 
   app.listen(PORT, '0.0.0.0' as any, () => {
     console.log(`Server running on http://localhost:${PORT}`);
