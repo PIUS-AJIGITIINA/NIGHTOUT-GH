@@ -116,11 +116,8 @@ async function fetchGeminiEvents(): Promise<any[]> {
   if (!process.env.GEMINI_API_KEY) return [];
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   const queries = [
-    "Upcoming events concerts parties in Accra Ghana 2026",
-    "Upcoming events festivals shows in Kumasi Ghana 2026",
-    "Campus events university parties Ghana 2026",
-    "Comedy shows open mic Ghana 2026",
-    "Beach parties nightlife events Ghana coast 2026"
+    "Upcoming events concerts festivals parties in Ghana 2026",
+    "Comedy shows university events nightlife Accra 2026"
   ];
   
   const allEvents: any[] = [];
@@ -144,7 +141,7 @@ async function fetchGeminiEvents(): Promise<any[]> {
 
 async function fetchScrapedEvents(): Promise<any[]> {
   if (!process.env.GEMINI_API_KEY) return [];
-  const urls = ["https://ghanamusic.com/events", "https://www.ghana.travel/events", "https://ticketplus.com.gh", "https://www.nowghana.com/events", "https://afritix.com/events/ghana"];
+  const urls = ["https://ghanamusic.com/events", "https://ticketplus.com.gh"];
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   const allEvents: any[] = [];
   await Promise.all(urls.map(async (url) => {
@@ -207,7 +204,7 @@ async function fetchEventbriteEvents(): Promise<any[]> {
 
 async function fetchYouTubeEvents(): Promise<any[]> {
   if (!process.env.YOUTUBE_API_KEY) return [];
-  const queries = ["Ghana events 2026", "Accra concert 2026", "Kumasi party 2026", "Ghana festival 2026", "Ghana comedy show 2026"];
+  const queries = ["Ghana upcoming events 2026", "Ghana concert festival 2026"];
   const allEvents: any[] = [];
   await Promise.all(queries.map(async (q) => {
     try {
@@ -555,14 +552,6 @@ app.get('/api/events', async (req, res) => {
     
     const uniqueEvents = [...cachedScannedEvents];
     uniqueEvents.push(...customEvents);
-
-    uniqueEvents.push(
-        { id: "fb1", name: "Chale Wote Street Art Festival", date: "2026-08-20", time: "10:00 AM", venue: "James Town", city: "Greater Accra", category: "Festival", price: "Free", description: "The biggest street art festival in West Africa.", sourceLink: "https://chalewote.com", sourcePlatform: "Local Vibes", coverImage: "https://upload.wikimedia.org/wikipedia/commons/f/f4/Chale_Wote_Street_Art_Festival_5.jpg" },
-        { id: "fb2", name: "Homowo Festival", date: "2026-08-15", time: "All Day", venue: "Ga Mashie", city: "Greater Accra", category: "Festival", price: "Free", description: "The annual festival to hoot at hunger.", sourceLink: "#", sourcePlatform: "Local Vibes", coverImage: "https://upload.wikimedia.org/wikipedia/commons/f/fb/Image_from_Homowo_Festival_in_Ghana.jpg" },
-        { id: "fb3", name: "Tidal Rave 2026", date: "2026-10-15", time: "12:00 PM", venue: "Kokrobite Beach", city: "Greater Accra", category: "Concert", price: "GHS 150", description: "The ultimate beach experience.", sourceLink: "#", sourcePlatform: "Local Vibes", coverImage: "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&q=80&w=800" },
-        { id: "fb4", name: "Aboakyir Festival", date: "2026-05-02", time: "8:00 AM", venue: "Winneba", city: "Central Region", category: "Festival", price: "Free", description: "Deer hunting festival of the Effutu people.", sourceLink: "#", sourcePlatform: "Local Vibes", coverImage: "https://media.gettyimages.com/id/679632904/photo/aboakyir-festival.jpg" },
-        { id: "fb5", name: "Laugh Out Loud GH", date: "2026-09-10", time: "8:00 PM", venue: "National Theatre", city: "Greater Accra", category: "Comedy", price: "GHS 100", description: "Top comedians from across the continent.", sourceLink: "#", sourcePlatform: "Local Vibes", coverImage: "https://images.unsplash.com/photo-1585699324551-f6c309eedeca?auto=format&fit=crop&q=80&w=800" }
-    );
 
     const finalEvents = uniqueEvents.filter(e => !hiddenEvents.includes(e.id));
 

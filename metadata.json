@@ -1,5 +1,5 @@
 {
-  "name": "NightOut GH",
+  "name": "Aura Events",
   "description": "Events and Nightlife Discovery web app for Ghanaian youth, finding real-time events via AI.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

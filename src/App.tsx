@@ -179,14 +179,14 @@ export default function App() {
   // Bookmarks
   const [savedEventIds, setSavedEventIds] = useState<Record<string, boolean>>(() => {
     try {
-      return JSON.parse(localStorage.getItem('nightout_saved') || '{}');
+      return JSON.parse(localStorage.getItem('aura_saved') || '{}');
     } catch {
       return {};
     }
   });
 
   useEffect(() => {
-    localStorage.setItem('nightout_saved', JSON.stringify(savedEventIds));
+    localStorage.setItem('aura_saved', JSON.stringify(savedEventIds));
   }, [savedEventIds]);
 
   const toggleBookmark = (e: React.MouseEvent, id: string) => {
@@ -205,24 +205,7 @@ export default function App() {
   const [reviewRating, setReviewRating] = useState(5);
 
   // Community Submitted State (would be a real DB in prod)
-  const [communityEvents, setCommunityEvents] = useState<EventItem[]>([
-    {
-      id: 'comm_init_1',
-      name: 'Detty December: Afro Future 2026',
-      date: '2026-12-27',
-      time: '18:00',
-      venue: 'El-Wak Stadium',
-      city: 'Accra',
-      category: 'Festival',
-      price: 'GHS 250 - 1000',
-      description: 'The biggest celebration of African culture and music is back. Get ready for the energy!',
-      sourceLink: 'https://instagram.com',
-      sourcePlatform: 'User Submitted',
-      isCommunitySubmitted: true,
-      isPromoted: true,
-      coverImage: 'https://images.unsplash.com/photo-1540039155732-d674d0e80062?auto=format&fit=crop&q=80&w=800'
-    }
-  ]);
+  const [communityEvents, setCommunityEvents] = useState<EventItem[]>([]);
 
   useEffect(() => {
     fetchEvents();
@@ -431,10 +414,10 @@ export default function App() {
                 transition={{ type: "spring", stiffness: 200, damping: 10 }}
                 className="w-10 h-10 bg-gh-orange text-gh-black flex items-center justify-center font-display text-2xl font-black rounded-sm shadow-lg shadow-gh-orange/20"
               >
-                N
+                A
               </motion.div>
               <h1 className="text-3xl font-display leading-none">
-                <span className="text-white">NIGHTOUT</span><span className="text-gh-orange">.</span>
+                <span className="text-white">AURA</span><span className="text-gh-orange">.</span>
               </h1>
             </div>
             
@@ -700,16 +683,14 @@ export default function App() {
               {filteredEvents.map((ev) => (
                 <motion.div 
                   key={ev.id}
-                  layoutId={ev.id}
                   onClick={() => setSelectedEvent(ev)}
                   variants={{
-                    hidden: { opacity: 0, y: 30, scale: 0.95 },
-                    show: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 350, damping: 25 } }
+                    hidden: { opacity: 0, y: 30 },
+                    show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 350, damping: 25 } }
                   }}
-                  whileHover={{ y: -8, scale: 1.02, transition: { duration: 0.2 } }}
                   whileTap={{ scale: 0.98 }}
                   className={cn(
-                    "group flex flex-col glass rounded-2xl overflow-hidden transition-all duration-300 break-inside-avoid cursor-pointer shadow-xl",
+                    "group flex flex-col glass rounded-2xl overflow-hidden transition-all duration-300 break-inside-avoid cursor-pointer shadow-xl hover:-translate-y-2",
                     ev.isPromoted ? "card-gradient border-gh-gold shadow-2xl z-10" : "hover:bg-white/5 hover:shadow-2xl hover:shadow-gh-orange/10 border border-white/5 hover:border-white/20"
                   )}
                 >
@@ -726,7 +707,7 @@ export default function App() {
                       <button 
                         onClick={(e) => toggleBookmark(e, ev.id)}
                         className={cn(
-                          "bg-black/60 backdrop-blur-md p-1.5 rounded-lg border transition-colors z-20",
+                          "bg-black/80 p-1.5 rounded-lg border transition-colors z-20",
                           savedEventIds[ev.id] ? "border-gh-gold/50 text-gh-gold" : "border-white/10 text-white hover:bg-white/20 hover:text-white"
                         )}
                         title={savedEventIds[ev.id] ? "Remove Bookmark" : "Save Event"}
@@ -735,12 +716,12 @@ export default function App() {
                       </button>
                       <button 
                         onClick={(e) => { e.stopPropagation(); handleRemoveEvent(ev.id, e); }}
-                        className="bg-black/60 backdrop-blur-md p-1.5 rounded-lg border border-white/10 hover:bg-red-500/80 transition-colors z-20"
+                        className="bg-black/80 p-1.5 rounded-lg border border-white/10 hover:bg-red-500/80 transition-colors z-20"
                         title="Remove Event"
                       >
                         <Trash2 className="w-4 h-4 text-white/90" />
                       </button>
-                      <div className="bg-black/60 backdrop-blur-md p-1.5 rounded-lg border border-white/10 z-20">
+                      <div className="bg-black/80 p-1.5 rounded-lg border border-white/10 z-20">
                         {ev.sourcePlatform === 'YouTube' ? <Youtube className="w-4 h-4 text-red-500" /> : <Share2 className="w-4 h-4 text-white/80" />}
                       </div>
                     </div>
@@ -1134,7 +1115,6 @@ export default function App() {
             onClick={() => setSelectedEvent(null)}
           >
             <motion.div
-              layoutId={selectedEvent.id}
               className="bg-gh-black border border-white/10 rounded-2xl w-full max-w-2xl my-8 overflow-hidden relative shadow-2xl"
               onClick={e => e.stopPropagation()}
             >
